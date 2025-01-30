@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react';
 import { GridRow, SortConfig, FilterConfig } from '@/types/grid';
-import { format } from 'date-fns';
-import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { format, isWithinInterval, subHours, subDays, subWeeks, subMonths } from 'date-fns';
+import { ChevronUp, ChevronDown, Search, Calendar as CalendarIcon, X } from 'lucide-react';
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface DataGridProps {
   data: GridRow[];
@@ -11,6 +14,13 @@ interface DataGridProps {
 const DataGrid = ({ data }: DataGridProps) => {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'prNumber', direction: null });
   const [filters, setFilters] = useState<FilterConfig>({});
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: undefined,
+    to: undefined,
+  });
 
   const handleSort = (key: keyof GridRow) => {
     setSortConfig(current => ({
@@ -24,6 +34,32 @@ const DataGrid = ({ data }: DataGridProps) => {
       ...current,
       [key]: value
     }));
+  };
+
+  const handleQuickDateFilter = (period: 'hour' | 'day' | 'week' | 'month') => {
+    const now = new Date();
+    let from: Date;
+
+    switch (period) {
+      case 'hour':
+        from = subHours(now, 1);
+        break;
+      case 'day':
+        from = subDays(now, 1);
+        break;
+      case 'week':
+        from = subWeeks(now, 1);
+        break;
+      case 'month':
+        from = subMonths(now, 1);
+        break;
+    }
+
+    setDateRange({ from, to: now });
+  };
+
+  const clearDateFilter = () => {
+    setDateRange({ from: undefined, to: undefined });
   };
 
   const getStatusColor = (status: string) => {
@@ -42,14 +78,31 @@ const DataGrid = ({ data }: DataGridProps) => {
   const sortedAndFilteredData = useMemo(() => {
     let result = [...data];
 
-    // Apply filters
+    // Apply date range filter
+    if (dateRange.from || dateRange.to) {
+      result = result.filter(item => {
+        const itemDate = new Date(item.mergeCommitTimestamp);
+        if (dateRange.from && dateRange.to) {
+          return isWithinInterval(itemDate, { start: dateRange.from, end: dateRange.to });
+        } else if (dateRange.from) {
+          return itemDate >= dateRange.from;
+        } else if (dateRange.to) {
+          return itemDate <= dateRange.to;
+        }
+        return true;
+      });
+    }
+
+    // Apply other filters
     Object.keys(filters).forEach(key => {
-      const filterValue = filters[key].toLowerCase();
-      if (filterValue) {
-        result = result.filter(item => {
-          const value = String(item[key as keyof GridRow]).toLowerCase();
-          return value.includes(filterValue);
-        });
+      if (key !== 'mergeCommitTimestamp') { // Skip timestamp as we handle it separately
+        const filterValue = filters[key].toLowerCase();
+        if (filterValue) {
+          result = result.filter(item => {
+            const value = String(item[key as keyof GridRow]).toLowerCase();
+            return value.includes(filterValue);
+          });
+        }
       }
     });
 
@@ -66,7 +119,7 @@ const DataGrid = ({ data }: DataGridProps) => {
     }
 
     return result;
-  }, [data, sortConfig, filters]);
+  }, [data, sortConfig, filters, dateRange]);
 
   return (
     <div className="w-full overflow-hidden rounded-lg shadow-sm border fade-in">
@@ -77,7 +130,7 @@ const DataGrid = ({ data }: DataGridProps) => {
               {Object.keys(data[0] || {}).map((key) => (
                 <th key={key} className="px-6 py-3 border-b border-gray-200">
                   <div className="space-y-2">
-                    <div 
+                    <div
                       className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer flex items-center gap-2"
                       onClick={() => handleSort(key as keyof GridRow)}
                     >
@@ -86,16 +139,91 @@ const DataGrid = ({ data }: DataGridProps) => {
                         sortConfig.direction === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
                       )}
                     </div>
-                    <div className="relative">
-                      <Search className="w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                      <Input
-                        type="text"
-                        placeholder={`Filter ${key}`}
-                        className="pl-8 text-sm"
-                        onChange={(e) => handleFilter(key as keyof GridRow, e.target.value)}
-                        value={filters[key] || ''}
-                      />
-                    </div>
+                    {key === 'mergeCommitTimestamp' ? (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange.from ? (
+                                  dateRange.to ? (
+                                    <>
+                                      {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
+                                    </>
+                                  ) : (
+                                    format(dateRange.from, "LLL dd, y")
+                                  )
+                                ) : (
+                                  "Select date range"
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange.from}
+                                selected={{ from: dateRange.from, to: dateRange.to }}
+                                onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
+                                numberOfMonths={2}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          {(dateRange.from || dateRange.to) && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={clearDateFilter}
+                              className="shrink-0"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleQuickDateFilter('hour')}
+                          >
+                            Last Hour
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleQuickDateFilter('day')}
+                          >
+                            Last Day
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleQuickDateFilter('week')}
+                          >
+                            Last Week
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleQuickDateFilter('month')}
+                          >
+                            Last Month
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        <Input
+                          type="text"
+                          placeholder={`Filter ${key}`}
+                          className="pl-8 text-sm"
+                          onChange={(e) => handleFilter(key as keyof GridRow, e.target.value)}
+                          value={filters[key] || ''}
+                        />
+                      </div>
+                    )}
                   </div>
                 </th>
               ))}
@@ -114,7 +242,7 @@ const DataGrid = ({ data }: DataGridProps) => {
                   {row.repoName}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`status-badge ${getStatusColor(row.deploymentStatus)}`}>
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(row.deploymentStatus)}`}>
                     {row.deploymentStatus}
                   </span>
                 </td>
