@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { GridRow, SortConfig, FilterConfig } from '@/types/grid';
-import { format, isWithinInterval } from 'date-fns';
-import { ChevronUp, ChevronDown, Search, Calendar as CalendarIcon } from 'lucide-react';
+import { format, isWithinInterval, subHours, subDays, subWeeks, subMonths } from 'date-fns';
+import { ChevronUp, ChevronDown, Search, Calendar as CalendarIcon, X } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -34,6 +34,32 @@ const DataGrid = ({ data }: DataGridProps) => {
       ...current,
       [key]: value
     }));
+  };
+
+  const handleQuickDateFilter = (period: 'hour' | 'day' | 'week' | 'month') => {
+    const now = new Date();
+    let from: Date;
+
+    switch (period) {
+      case 'hour':
+        from = subHours(now, 1);
+        break;
+      case 'day':
+        from = subDays(now, 1);
+        break;
+      case 'week':
+        from = subWeeks(now, 1);
+        break;
+      case 'month':
+        from = subMonths(now, 1);
+        break;
+    }
+
+    setDateRange({ from, to: now });
+  };
+
+  const clearDateFilter = () => {
+    setDateRange({ from: undefined, to: undefined });
   };
 
   const getStatusColor = (status: string) => {
@@ -114,35 +140,77 @@ const DataGrid = ({ data }: DataGridProps) => {
                       )}
                     </div>
                     {key === 'mergeCommitTimestamp' ? (
-                      <div className="flex gap-2">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start text-left font-normal">
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {dateRange.from ? (
-                                dateRange.to ? (
-                                  <>
-                                    {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
-                                  </>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange.from ? (
+                                  dateRange.to ? (
+                                    <>
+                                      {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
+                                    </>
+                                  ) : (
+                                    format(dateRange.from, "LLL dd, y")
+                                  )
                                 ) : (
-                                  format(dateRange.from, "LLL dd, y")
-                                )
-                              ) : (
-                                "Select date range"
-                              )}
+                                  "Select date range"
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange.from}
+                                selected={{ from: dateRange.from, to: dateRange.to }}
+                                onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
+                                numberOfMonths={2}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          {(dateRange.from || dateRange.to) && (
+                            <Button 
+                              variant="outline" 
+                              size="icon"
+                              onClick={clearDateFilter}
+                              className="shrink-0"
+                            >
+                              <X className="h-4 w-4" />
                             </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              initialFocus
-                              mode="range"
-                              defaultMonth={dateRange.from}
-                              selected={{ from: dateRange.from, to: dateRange.to }}
-                              onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
-                              numberOfMonths={2}
-                            />
-                          </PopoverContent>
-                        </Popover>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleQuickDateFilter('hour')}
+                          >
+                            Last Hour
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleQuickDateFilter('day')}
+                          >
+                            Last Day
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleQuickDateFilter('week')}
+                          >
+                            Last Week
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleQuickDateFilter('month')}
+                          >
+                            Last Month
+                          </Button>
+                        </div>
                       </div>
                     ) : (
                       <div className="relative">
