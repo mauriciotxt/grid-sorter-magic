@@ -130,7 +130,7 @@ const DataGrid = ({ data }: DataGridProps) => {
               {Object.keys(data[0] || {}).map((key) => (
                 <th key={key} className="px-6 py-3 border-b border-gray-200">
                   <div className="space-y-2">
-                    <div 
+                    <div
                       className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer flex items-center gap-2"
                       onClick={() => handleSort(key as keyof GridRow)}
                     >
@@ -171,8 +171,8 @@ const DataGrid = ({ data }: DataGridProps) => {
                             </PopoverContent>
                           </Popover>
                           {(dateRange.from || dateRange.to) && (
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="icon"
                               onClick={clearDateFilter}
                               className="shrink-0"
